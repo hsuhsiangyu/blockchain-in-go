@@ -38,8 +38,8 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
             IntToHex(pow.block.Timestamp),
             IntToHex(int64(targetBits)),
             IntToHex(int64(nonce)),
-        },
-        []byte{},
+        },  
+        []byte{},  //   why we need a ,   
     )                                                            
     return data
 }

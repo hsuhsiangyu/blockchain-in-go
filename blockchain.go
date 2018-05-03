@@ -1,9 +1,50 @@
 package main
 
+import (
+        "fmt"
+        "log"
+        "github.com/boltdb/bolt"
+    )
+
+const dbFile = "blockchain.db"
+const blocksBucket = "blocks"
+
 // Blockchain keeps a sequence of Blocks
 type Blockchain struct {
     tip []byte
     db  *bolt.DB
+}
+
+type BlockchainIterator struct {
+    currentHash []byte
+    db          *bolt.DB
+}
+
+func (bc *Blockchain) Iterator() *BlockchainIterator {
+    bci := &BlockchainIterator{bc.tip, bc.db}
+
+    return bci
+}
+
+// Next returns next block starting from the tip
+func (i *BlockchainIterator) Next() *Block {
+    var block *Block
+
+    err := i.db.View(func(tx *bolt.Tx) error {
+            b := tx.Bucket([]byte(blocksBucket))
+            encodedBlock := b.Get(i.currentHash)
+            block = DeserializeBlock(encodedBlock)
+                
+            return nil
+    })
+                    
+    if err != nil {
+            log.Panic(err)
+    }
+                            
+    i.currentHash = block.PrevBlockHash
+                            
+    return block
 }
 
 // AddBlock saves provided data as a block in the blockchain
@@ -11,7 +52,7 @@ func (bc *Blockchain) AddBlock(data string) {
     var lastHash []byte
 
     err := bc.db.View(func(tx *bolt.Tx) error {
-            b := tx.Bucket([]byte(blocksBucket))
+            b := tx.Bucket([]byte(blocksBucket))  //obtain the bucket storing our blocks
             lastHash = b.Get([]byte("l"))
                 
             return nil
@@ -26,12 +67,12 @@ func (bc *Blockchain) AddBlock(data string) {
     
     err = bc.db.Update(func(tx *bolt.Tx) error {
             b := tx.Bucket([]byte(blocksBucket))
-            err := b.Put(newBlock.Hash, newBlock.Serialize())
+            err := b.Put(newBlock.Hash, newBlock.Serialize()) // first, store newBlock.Hash as key, newBlock as value
             if err != nil {
                     log.Panic(err)
             }
                             
-            err = b.Put([]byte("l"), newBlock.Hash)
+            err = b.Put([]byte("l"), newBlock.Hash)  // second, store l as key, newBlock.Hash as value
             if err != nil {
                     log.Panic(err)
             }
@@ -49,7 +90,7 @@ func NewBlockchain() *Blockchain {
         if err != nil {
             log.Panic(err)
         }
-        err = db.Update(func(tx *bolt.Tx) error {
+        err = db.Update(func(tx *bolt.Tx) error {  // open a read-write transaction 
             b := tx.Bucket([]byte(blocksBucket))  // obtain the bucket storing our blocks
                 if b == nil {
                     fmt.Println("No existing blockchain found. Creating a new one...")
@@ -63,7 +104,7 @@ func NewBlockchain() *Blockchain {
                             log.Panic(err)
                     }
 
-                    err = b.Put([]byte("l"), genesis.Hash)  //update the l key storing the last block hash of the chain.
+                    err = b.Put([]byte("l"), genesis.Hash)  //update the l key storing the last block hash of the chain. ??
                     if err != nil {
                             log.Panic(err)
                     }
@@ -78,7 +119,7 @@ func NewBlockchain() *Blockchain {
                     log.Panic(err)
             }
 
-            bc := Blockchain{tip, db} //only the tip of the chain is stored. Also, we store a DB connection, 
+            bc := Blockchain{tip, db} //only the tip of the chain is stored. Also, we store a DB connection, all block stored in DB
 
             return &bc
 }

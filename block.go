@@ -2,6 +2,9 @@ package main
 
 import (
         "time"
+        "bytes"
+        "encoding/gob"
+        "log"
     )
 
 // Block keeps block headers
@@ -16,8 +19,8 @@ type Block struct {
 
 // NewBlock creates and returns Block
 func NewBlock(data string, prevBlockHash []byte) *Block {
-    block := &Block{time.Now().Unix(), []byte(data), prevBlockHash, []byte{}, 0}
-    pow := NewProofOfWork(block)
+    block := &Block{time.Now().Unix(), []byte(data), prevBlockHash, []byte{}, 0} // []byte can be initiled by string
+    pow := NewProofOfWork(block)  // obtain a pow struct which contains block pointer and target
     nonce, hash := pow.Run()
 
     block.Hash = hash[:]
@@ -27,7 +30,7 @@ func NewBlock(data string, prevBlockHash []byte) *Block {
 }
 // NewGenesisBlock creates and returns genesis Block
 func NewGenesisBlock() *Block {
-    return NewBlock("Genesis Block", []byte{})
+    return NewBlock("Genesis Block", []byte{})  // Genesis Block's preBlockHash must be []byte{}
 }
 
 
@@ -36,7 +39,9 @@ func (b *Block) Serialize() []byte {
     encoder := gob.NewEncoder(&result)  //initialize a gob encoder 
 
     err := encoder.Encode(b)        // encode the block
-
+    if err != nil {
+            log.Panic(err)
+    }    
     return result.Bytes()           // the result is returned as a byte array
 }
 
@@ -46,7 +51,9 @@ func DeserializeBlock(d []byte) *Block {
 
     decoder := gob.NewDecoder(bytes.NewReader(d))
     err := decoder.Decode(&block)
-
+    if err != nil {
+            log.Panic(err)
+    }
     return &block
 }
 

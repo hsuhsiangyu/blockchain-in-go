@@ -6,6 +6,7 @@ import (
     "crypto/sha256"
     "encoding/gob"
     "bytes"
+    "encoding/hex"
 )
 
 const subsidy = 10
@@ -14,6 +15,11 @@ type Transaction struct {
     ID   []byte
     Vin  []TXInput
     Vout []TXOutput
+}
+
+// IsCoinbase checks whether the transaction is coinbase
+func (tx Transaction) IsCoinbase() bool {
+    return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
 }
 
 type TXOutput struct {
@@ -27,6 +33,14 @@ type TXInput struct {
     ScriptSig string   //ScriptSig is a script which provides data to be used in an output’s ScriptPubKey. If the data is correct, the output can be unlocked, and its value can be used to generate new outputs
 }
 
+//just compare the script fields with unlockingData. These pieces will be improved in future
+func (in *TXInput) CanUnlockOutputWith(unlockingData string) bool {
+    return in.ScriptSig == unlockingData
+}
+
+func (out *TXOutput) CanBeUnlockedWith(unlockingData string) bool {
+    return out.ScriptPubKey == unlockingData
+}
 
 // A coinbase transaction has only one input.
 func NewCoinbaseTX(to, data string) *Transaction {
@@ -56,4 +70,38 @@ func (tx *Transaction) SetID() {
     tx.ID = hash[:]
 }
 
+// NewUTXOTransaction creates a new transaction
+func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transaction {
+    var inputs []TXInput
+    var outputs []TXOutput
+
+    acc, validOutputs := bc.FindSpendableOutputs(from, amount)
+
+    if acc < amount {
+            log.Panic("ERROR: Not enough funds")
+    }
+        
+    // Build a list of inputs
+    for txid, outs := range validOutputs {
+            txID, err := hex.DecodeString(txid)
+            if err != nil {
+                    log.Panic(err)
+            }
+                                    
+            for _, out := range outs {
+                    input := TXInput{txID, out, from}
+                    inputs = append(inputs, input)
+            }
+    }
+    // Build a list of outputs.                           create two outputs
+    outputs = append(outputs, TXOutput{amount, to})  // locked by receiver address 
+    if acc > amount {
+            outputs = append(outputs, TXOutput{acc - amount, from}) // a change,  locked by sender address
+    }
+
+    tx := Transaction{nil, inputs, outputs}
+    tx.SetID()
+
+    return &tx
+}
 

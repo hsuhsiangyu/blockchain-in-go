@@ -23,21 +23,6 @@ func (tx Transaction) IsCoinbase() bool {
     return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
 }
 
-type TXOutput struct {
-    Value       int
-    PubKeyHash  []byte
-}
-
-func (out *TXOutput) Lock(address []byte) {
-    pubKeyHash := Base58Decode(address)
-    pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
-    out.PubKeyHash = pubKeyHash
-}
-
-// checks if provided public key hash was used to lock the output. 
-func (out *TXOutput) IsLockedWithKey(pubKeyHash []byte) bool {
-    return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0
-}
 
 type TXInput struct {
     Txid      []byte   // stores the ID of such transaction,
@@ -61,8 +46,8 @@ func NewCoinbaseTX(to, data string) *Transaction {
     }
         
     txin := TXInput{[]byte{}, -1, nil, []byte(data)}
-    txout := TXOutput{subsidy, to}
-    tx := Transaction{nil, []TXInput{txin}, []TXOutput{txout}}
+    txout := NewTXOutput(subsidy, to)
+    tx := Transaction{nil, []TXInput{txin}, []TXOutput{*txout}}
     tx.SetID()
         
     return &tx
@@ -87,7 +72,13 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
     var inputs []TXInput
     var outputs []TXOutput
 
-    acc, validOutputs := bc.FindSpendableOutputs(from, amount)
+    wallets, err := NewWallets()
+    if err != nil {
+            log.Panic(err)
+    }
+    wallet := wallets.GetWallet(from)
+    pubKeyHash := HashPubKey(wallet.PublicKey)
+    acc, validOutputs := bc.FindSpendableOutputs(pubKeyHash, amount)
 
     if acc < amount {
             log.Panic("ERROR: Not enough funds")
@@ -101,14 +92,14 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
             }
                                     
             for _, out := range outs {
-                    input := TXInput{txID, out, from}
+                    input := TXInput{txID, out, nil, wallet.PublicKey}
                     inputs = append(inputs, input)
             }
     }
     // Build a list of outputs.                           create two outputs
-    outputs = append(outputs, TXOutput{amount, to})  // locked by receiver address 
+    outputs = append(outputs, *NewTXOutput(amount, to)) // locked by receiver address 
     if acc > amount {
-            outputs = append(outputs, TXOutput{acc - amount, from}) // a change,  locked by sender address
+            outputs = append(outputs, *NewTXOutput(acc - amount, from)) // a change,  locked by sender address
     }
 
     tx := Transaction{nil, inputs, outputs}

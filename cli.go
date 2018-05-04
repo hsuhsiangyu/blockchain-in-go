@@ -50,12 +50,12 @@ func (cli *CLI) printChain() {
         }
 }
 
-func (cli *CLI) getBalance(address string) {
+func (cli *CLI) getBalance(pubKeyHash []byte) {
     bc := NewBlockchain(address)
     defer bc.db.Close()
 
     balance := 0
-    UTXOs := bc.FindUTXO(address)
+    UTXOs := bc.FindUTXO(pubKeyHash)
     for _, out := range UTXOs {
             balance += out.Value
     }
@@ -72,6 +72,10 @@ func (cli *CLI) send(from, to string, amount int) {
     fmt.Println("Success!")
 }
 
+func (cli *CLI) createWallet(){
+    wl := NewWallet()
+    fmt.Printf("Your new address: %s", wl.GetAddress())
+}
 
 // Run parses command line arguments and processes commands
 func (cli *CLI) Run() {
@@ -81,6 +85,7 @@ func (cli *CLI) Run() {
     printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
     getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
     sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
+    createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
 
     createBlockchainAddress := createBlockchainCmd.String("address", "", "he address to send genesis block reward to")
     getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
@@ -107,6 +112,11 @@ func (cli *CLI) Run() {
             }
     case "send" :
             err := sendCmd.Parse(os.Args[2:])
+            if err != nil {
+                    log.Panic(err)
+            }
+    case "createwallet":
+            err := createWalletCmd.Parse(os.Args[2:])
             if err != nil {
                     log.Panic(err)
             }
@@ -139,6 +149,9 @@ func (cli *CLI) Run() {
             }
             // here pay attenion 
             cli.send(*sendFrom, *sendTo, *sendAmount)
+    }
+    if createWalletCmd.Parsed() {
+            cli.createWallet()
     }
 
 

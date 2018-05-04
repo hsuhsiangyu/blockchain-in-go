@@ -7,6 +7,7 @@ import (
     "encoding/gob"
     "bytes"
     "encoding/hex"
+    
 )
 
 const subsidy = 10
@@ -23,24 +24,35 @@ func (tx Transaction) IsCoinbase() bool {
 }
 
 type TXOutput struct {
-    Value        int
-    ScriptPubKey string // don't have addresses implemented, we'll avoid the whole scripting related logic for now.it will store an arbitary string
+    Value       int
+    PubKeyHash  []byte
+}
+
+func (out *TXOutput) Lock(address []byte) {
+    pubKeyHash := Base58Decode(address)
+    pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+    out.PubKeyHash = pubKeyHash
+}
+
+// checks if provided public key hash was used to lock the output. 
+func (out *TXOutput) IsLockedWithKey(pubKeyHash []byte) bool {
+    return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0
 }
 
 type TXInput struct {
     Txid      []byte   // stores the ID of such transaction,
     Vout      int      // stores an index of an output in the transaction. 
-    ScriptSig string   //ScriptSig is a script which provides data to be used in an output’s ScriptPubKey. If the data is correct, the output can be unlocked, and its value can be used to generate new outputs
+    Signature []byte 
+    PubKey    []byte
 }
 
-//just compare the script fields with unlockingData. These pieces will be improved in future
-func (in *TXInput) CanUnlockOutputWith(unlockingData string) bool {
-    return in.ScriptSig == unlockingData
+// checks that an input uses a specific key to unlock an output
+func (in *TXInput) UsesKey(pubKeyHash []byte) bool {
+    lockingHash := HashPubKey(in.PubKey)
+
+    return bytes.Compare(lockingHash, pubKeyHash) == 0
 }
 
-func (out *TXOutput) CanBeUnlockedWith(unlockingData string) bool {
-    return out.ScriptPubKey == unlockingData
-}
 
 // A coinbase transaction has only one input.
 func NewCoinbaseTX(to, data string) *Transaction {
@@ -48,7 +60,7 @@ func NewCoinbaseTX(to, data string) *Transaction {
             data = fmt.Sprintf("Reward to '%s'", to)
     }
         
-    txin := TXInput{[]byte{}, -1, data}
+    txin := TXInput{[]byte{}, -1, nil, []byte(data)}
     txout := TXOutput{subsidy, to}
     tx := Transaction{nil, []TXInput{txin}, []TXOutput{txout}}
     tx.SetID()

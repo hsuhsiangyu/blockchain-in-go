@@ -1,0 +1,7 @@
+Transactions must be signed because this is the only way in Bitcoin to guarantee that one cannot spend coins belonging to someone else.
+
+Considering that transactions unlock previous outputs, redistribute their values, and lock new outputs, the following data must be signed:
+
+1.Public key hashes stored in unlocked outputs. This identifies “sender” of a transaction.
+2.Public key hashes stored in new, locked, outputs. This identifies “recipient” of a transaction.
+3.Values of new outputs.

@@ -79,7 +79,6 @@ func (ws Wallets) SaveToFile() {
     if err != nil {
             log.Panic(err)
     }
-    fmt.Printf("write into the file wallet.dat\n")   
     err = ioutil.WriteFile(walletFile, content.Bytes(), 0644)
     if err != nil {
             log.Panic(err)

@@ -1,9 +1,12 @@
 package main
 
 import (
+        "bytes"
+        "errors"
         "fmt"
         "encoding/hex"
         "log"
+        "crypto/ecdsa"
         "os"
         "github.com/boltdb/bolt"
     )
@@ -28,11 +31,36 @@ func dbExists() bool {
     return true
 }
 
+//finds a transaction by ID (this requires iterating over all the blocks in the blockchain)
+func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
+    bci := bc.Iterator()
+
+    for {
+            block := bci.Next()
+            for _, tx := range block.Transactions {
+                    if bytes.Compare(tx.ID, ID) == 0 {
+                            return *tx, nil
+                    }
+            }
+                                                    
+            if len(block.PrevBlockHash) == 0 {
+                    break
+            }
+    }
+                                                                        
+    return Transaction{}, errors.New("Transaction is not found")
+}
 
 
 // AddBlock saves provided data as a block in the blockchain
 func (bc *Blockchain) MineBlock(transaction []*Transaction) {
     var lastHash []byte
+
+    for _, tx := range transaction {
+            if bc.VerifyTransaction(tx) != true {
+                    log.Panic("ERROR: Invalid transaction")
+            }
+    }
 
     err := bc.db.View(func(tx *bolt.Tx) error {
             b := tx.Bucket([]byte(blocksBucket))  //obtain the bucket storing our blocks
@@ -60,6 +88,39 @@ func (bc *Blockchain) MineBlock(transaction []*Transaction) {
             return nil
     })
 }
+
+// SignTransaction signs inputs of a Transaction
+// SignTransaction takes a transaction, finds transactions it references, and signs it;
+func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey) {
+    prevTXs := make(map[string]Transaction)
+
+    for _, vin := range tx.Vin {
+            prevTX, err := bc.FindTransaction(vin.Txid)
+                if err != nil {
+                        log.Panic(err)
+                }
+                prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
+    }
+                                
+    tx.Sign(privKey, prevTXs)
+}
+
+// VerifyTransaction verifies transaction input signatures
+func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
+    prevTXs := make(map[string]Transaction)
+
+    for _, vin := range tx.Vin {
+            prevTX, err := bc.FindTransaction(vin.Txid)
+            if err != nil {
+                    log.Panic(err)
+            }
+            prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
+    }
+                                
+    return tx.Verify(prevTXs)
+}
+
+
 // have some confuse
 // FindUnspentTransactions returns a list of transactions containing unspent outputs
 func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {

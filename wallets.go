@@ -53,12 +53,10 @@ func (ws *Wallets) LoadFromFile() error {
     if _, err := os.Stat(walletFile); os.IsNotExist(err) {
             return err
     }
-        
     fileContent, err := ioutil.ReadFile(walletFile)
     if err != nil {
             log.Panic(err)
     }
-                
     var wallets Wallets
     gob.Register(elliptic.P256())
     decoder := gob.NewDecoder(bytes.NewReader(fileContent))
@@ -66,9 +64,7 @@ func (ws *Wallets) LoadFromFile() error {
     if err != nil {
             log.Panic(err)
     }
-                        
     ws.Wallets = wallets.Wallets
-                        
     return nil
 }
 
@@ -83,7 +79,7 @@ func (ws Wallets) SaveToFile() {
     if err != nil {
             log.Panic(err)
     }
-        
+    fmt.Printf("write into the file wallet.dat\n")   
     err = ioutil.WriteFile(walletFile, content.Bytes(), 0644)
     if err != nil {
             log.Panic(err)

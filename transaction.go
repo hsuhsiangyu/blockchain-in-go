@@ -23,22 +23,6 @@ func (tx Transaction) IsCoinbase() bool {
     return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
 }
 
-
-type TXInput struct {
-    Txid      []byte   // stores the ID of such transaction,
-    Vout      int      // stores an index of an output in the transaction. 
-    Signature []byte 
-    PubKey    []byte
-}
-
-// checks that an input uses a specific key to unlock an output
-func (in *TXInput) UsesKey(pubKeyHash []byte) bool {
-    lockingHash := HashPubKey(in.PubKey)
-
-    return bytes.Compare(lockingHash, pubKeyHash) == 0
-}
-
-
 // A coinbase transaction has only one input.
 func NewCoinbaseTX(to, data string) *Transaction {
     if data == "" {

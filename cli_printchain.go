@@ -12,12 +12,14 @@ func (cli *CLI) printChain() {
     bci := bc.Iterator()
     for {
             block := bci.Next()  // print the last block to geneis block
-        
+            fmt.Printf("============ Block %x ============\n", block.Hash) 
             fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
-            fmt.Printf("Hash: %x\n", block.Hash)
             pow := NewProofOfWork(block)
             fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
-            fmt.Println()
+            for _, tx := range block.Transactions {
+                    fmt.Println(tx)
+            }
+            fmt.Printf("\n\n")
             if len(block.PrevBlockHash) == 0 {
                     break
             }

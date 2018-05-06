@@ -1,0 +1,23 @@
+why do we want to have the UTXO set?
+Consider the Blockchain.FindUnspentTransactions method we’ve implemented earlier:
+func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
+    ...
+    bci := bc.Iterator()
+
+    for {
+        block := bci.Next()
+
+        for _, tx := range block.Transactions {
+            ...
+        }
+
+        if len(block.PrevBlockHash) == 0 {
+            break
+        }
+    }
+    ...
+}
+
+The function finds transactions with unspent outputs. Since transactions are stored in blocks, it iterates over each block in the blockchain and checks every transaction in it.
+
+The solution to the problem is to have an index that stores only unspent outputs, and this is what the UTXO set does: this is a cache that is built from all blockchain transactions (by iterating over blocks, yes, but this is done only once), and is later used to calculate balance and validate new transactions.

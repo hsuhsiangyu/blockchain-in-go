@@ -39,9 +39,9 @@ func (u UTXOSet) CountTransactions() int {
 func (u UTXOSet) Reindex() {
     db := u.Blockchain.db
     bucketName := []byte(utxoBucket)
-    
+    // it removes the bucket if it exists
     err := db.Update(func(tx *bolt.Tx) error {
-            err := tx.DeleteBucket(bucketName)
+            err := tx.DeleteBucket(bucketName)  
             if err != nil && err != bolt.ErrBucketNotFound {
                     log.Panic(err)
             }
@@ -56,7 +56,7 @@ func (u UTXOSet) Reindex() {
             log.Panic(err)
             }
     UTXO := u.Blockchain.FindUTXO()
-            
+    // it gets all unspent outputs from blockchain, and finally it saves the outputs to the bucket.
     err = db.Update(func(tx *bolt.Tx) error {
         b := tx.Bucket(bucketName)
                     
@@ -82,9 +82,9 @@ func (u UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[s
 
     err := db.View(func(tx *bolt.Tx) error {
             b := tx.Bucket([]byte(utxoBucket))
-            c := b.Cursor()
+            c := b.Cursor() // 要遍历键，我们将使用游标Cursor()
             
-            for k, v := c.First(); k != nil; k, v = c.Next() {
+            for k, v := c.First(); k != nil; k, v = c.Next() { //First()  移动到第一个健.
                 txID := hex.EncodeToString(k)
                 outs := DeserializeOutputs(v)
                                     
@@ -137,42 +137,42 @@ func (u UTXOSet) Update(block *Block) {
 
     err := db.Update(func(tx *bolt.Tx) error {
             b := tx.Bucket([]byte(utxoBucket))
-    for _, tx := range block.Transactions {
-        if tx.IsCoinbase() == false {
-            for _, vin := range tx.Vin {
-                    updatedOuts := TXOutputs{}
-                    outsBytes := b.Get(vin.Txid)
-                    outs := DeserializeOutputs(outsBytes)
-                                                                                
-                    for outIdx, out := range outs.Outputs {
-                        if outIdx != vin.Vout {
-                            updatedOuts.Outputs = append(updatedOuts.Outputs, out)
+        for _, tx := range block.Transactions {
+            if tx.IsCoinbase() == false {
+                for _, vin := range tx.Vin {
+                        updatedOuts := TXOutputs{}
+                        outsBytes := b.Get(vin.Txid)  // Txid means the previous transaction ID
+                        outs := DeserializeOutputs(outsBytes) // previous transaction output slice
+// If a transaction which outputs were removed, contains no more outputs, it’s removed as well. ???????????                                                                              
+                        for outIdx, out := range outs.Outputs {
+                            if outIdx != vin.Vout {  
+                                updatedOuts.Outputs = append(updatedOuts.Outputs, out)
+                            }
                         }
-                    }
-                    if len(updatedOuts.Outputs) == 0 {
-                        err := b.Delete(vin.Txid)
-                        if err != nil {
-                                log.Panic(err)
+                        if len(updatedOuts.Outputs) == 0 {
+                            err := b.Delete(vin.Txid)
+                            if err != nil {
+                                    log.Panic(err)
+                            }
+                        } else {
+                            err := b.Put(vin.Txid, updatedOuts.Serialize())
+                            if err != nil {
+                                    log.Panic(err)
+                            }
                         }
-                    } else {
-                        err := b.Put(vin.Txid, updatedOuts.Serialize())
-                        if err != nil {
-                                log.Panic(err)
-                        }
-                    }
+                }
+            }
+            newOutputs := TXOutputs{}
+            for _, out := range tx.Vout {  // add all the output of this transaction
+                    newOutputs.Outputs = append(newOutputs.Outputs, out)    
+            }
+
+            err := b.Put(tx.ID, newOutputs.Serialize())
+            if err != nil {
+                    log.Panic(err)
             }
         }
-        newOutputs := TXOutputs{}
-        for _, out := range tx.Vout {
-                newOutputs.Outputs = append(newOutputs.Outputs, out)    
-        }
-
-        err := b.Put(tx.ID, newOutputs.Serialize())
-        if err != nil {
-                log.Panic(err)
-        }
-    }
-    return nil
+        return nil
     })
     if err != nil {
             log.Panic(err)

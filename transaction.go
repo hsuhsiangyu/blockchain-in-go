@@ -27,19 +27,6 @@ func (tx Transaction) IsCoinbase() bool {
     return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
 }
 
-// A coinbase transaction has only one input.
-func NewCoinbaseTX(to, data string) *Transaction {
-    if data == "" {
-            data = fmt.Sprintf("Reward to '%s'", to)
-    }
-        
-    txin := TXInput{[]byte{}, -1, nil, []byte(data)}
-    txout := NewTXOutput(subsidy, to)
-    tx := Transaction{nil, []TXInput{txin}, []TXOutput{*txout}}
-    tx.ID = tx.Hash() 
-    return &tx
-}
-
 // Serialize returns a serialized Transaction
 func (tx Transaction) Serialize() []byte {
     var encoded bytes.Buffer
@@ -64,6 +51,8 @@ func (tx *Transaction) Hash() []byte {
 
     return hash[:]
 }
+
+
 
 // Sign signs each input of a Transaction
 func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transaction){ // look at signing-scheme.png
@@ -170,6 +159,26 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
             }
     }
     return true
+}
+
+
+// A coinbase transaction has only one input.
+func NewCoinbaseTX(to, data string) *Transaction {
+    if data == "" {
+        randData := make([]byte, 20)
+        _, err := rand.Read(randData)
+        if err != nil {
+                log.Panic(err)
+        }
+
+        data = fmt.Sprintf("%x", randData)
+    }
+        
+    txin := TXInput{[]byte{}, -1, nil, []byte(data)}
+    txout := NewTXOutput(subsidy, to)
+    tx := Transaction{nil, []TXInput{txin}, []TXOutput{*txout}}
+    tx.ID = tx.Hash() 
+    return &tx
 }
 
 // NewUTXOTransaction creates a new transaction

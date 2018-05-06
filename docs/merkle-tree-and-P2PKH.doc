@@ -1,0 +1,16 @@
+Merkle Tree
+Simplified Payment Verification (SPV). SPV is a light Bitcoin node that doesn’t download the whole blockchain and doesn’t verify blocks and transactions. Instead, it finds transactions in blocks (to verify payments) and is linked to a full node to retrieve just necessary data. This mechanism allows having multiple light wallet nodes with running just one full node.
+
+For SPV to be possible, there should be a way to check if a block contains certain transaction without downloading the whole block. And this is where Merkle tree comes into play.
+
+The benefit of Merkle trees is that a node can verify membership of certain transaction without downloading the whole block.
+Just a transaction hash, a Merkle tree root hash, and a Merkle path are required for this.
+
+P2PKH:
+in Bitcoin there is the Script programming language, which is used to lock transaction outputs; and transaction inputs provide data to unlock outputs.
+<signature> <pubKey> OP_DUP OP_HASH160 <pubKeyHash> OP_EQUALVERIFY OP_CHECKSIG
+This script is called Pay to Public Key Hash (P2PKH), and this is the most commonly used script in Bitcoin.there’s just a script that checks that provided signature and public key are correct.
+
+Stack: <signature> <pubKey>
+Script: OP_CHECKSIG
+it makes a trimmed copy of the transaction, hashes it (because it’s a hash of a transaction that’s signed), and checks that the signature is correct using provided <signature> and <pubKey>.

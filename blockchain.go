@@ -22,14 +22,71 @@ type Blockchain struct {
     db  *bolt.DB
 }
 
-
-func dbExists() bool {
-    if _, err := os.Stat(dbFile); os.IsNotExist(err) {
-            return false
+// CreateBlockchain createss a new Blockchain DB
+func CreateBlockchain(address string) *Blockchain {
+    if dbExists() {
+            fmt.Println("Blockchain already exists.")
+            os.Exit(1)
     }
-        
-    return true
+    var tip []byte
+    cbtx := NewCoinbaseTX(address, genesisCoinbaseData)  // takes an address which will receive the reward for mining the genesis block.
+    genesis := NewGenesisBlock(cbtx)
+    db, err := bolt.Open(dbFile, 0600, nil)
+    if err != nil {
+        log.Panic(err)
+    }
+    err = db.Update(func(tx *bolt.Tx) error {  // open a read-write transaction
+        b, err := tx.CreateBucket([]byte(blocksBucket))  //create the bucket
+        if err != nil {
+                log.Panic(err)
+        }
+        err = b.Put(genesis.Hash, genesis.Serialize())
+        if err != nil {
+                log.Panic(err)
+        }
+
+        err = b.Put([]byte("l"), genesis.Hash)  //update the l key storing the last block hash of the chain. ??
+        if err != nil {
+                log.Panic(err)
+        }
+        tip = genesis.Hash
+
+        return nil
+    })
+    if err != nil {
+            log.Panic(err)
+    }
+
+    bc := Blockchain{tip, db} //only the tip of the chain is stored. Also, we store a DB connection, all block stored in DB
+
+    return &bc
 }
+
+// NewBlockchain creates43 a new Blockchain with genesis Block
+func NewBlockchain() *Blockchain {
+    if dbExists() == false {
+            fmt.Println("No existing blockchain found. Create one first.")
+            os.Exit(1)
+    }
+    var tip []byte
+    db, err := bolt.Open(dbFile, 0600, nil)
+    if err != nil {
+        log.Panic(err)
+    }
+    err = db.Update(func(tx *bolt.Tx) error {  // open a read-write transaction
+            b := tx.Bucket([]byte(blocksBucket))  // obtain the bucket storing our blocks
+            tip = b.Get([]byte("l"))  
+            return nil
+        })
+    if err != nil {
+            log.Panic(err)
+    }
+
+    bc := Blockchain{tip, db} //only the tip of the chain is stored. Also, we store a DB connection, all block stored in DB
+
+    return &bc
+}
+
 
 //finds a transaction by ID (this requires iterating over all the blocks in the blockchain)
 func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
@@ -49,6 +106,51 @@ func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
     return Transaction{}, errors.New("Transaction is not found")
 }
 
+
+// FindUTXO finds and returns all unspent transaction outputs
+func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
+    UTXO := make(map[string]TXOutputs)
+    spentTXOs := make(map[string][]int)
+    bci := bc.Iterator()
+    for {
+        block := bci.Next()
+    
+        for _, tx := range block.Transactions {
+            txID := hex.EncodeToString(tx.ID)
+                    
+            Outputs:
+                    for outIdx, out := range tx.Vout {
+                    // Was the output spent?
+                        if spentTXOs[txID] != nil {
+                            for _, spentOutIdx := range spentTXOs[txID] {
+                                    if spentOutIdx == outIdx {
+                                            continue Outputs
+                                    }
+                            }
+                        }
+                        outs := UTXO[txID]
+                        outs.Outputs = append(outs.Outputs, out)
+                        UTXO[txID] = outs
+                    }
+                    if tx.IsCoinbase() == false {
+                            for _, in := range tx.Vin {
+                                    inTxID := hex.EncodeToString(in.Txid)
+                                    spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
+                            }
+                    }
+        }
+        if len(block.PrevBlockHash) == 0 {
+                break
+        }
+    }
+    return UTXO
+}
+
+func (bc *Blockchain) Iterator() *BlockchainIterator {
+    bci := &BlockchainIterator{bc.tip, bc.db}
+
+    return bci
+}
 
 // AddBlock saves provided data as a block in the blockchain
 func (bc *Blockchain) MineBlock(transaction []*Transaction) *Block {
@@ -110,6 +212,9 @@ func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey)
 
 // VerifyTransaction verifies transaction input signatures
 func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
+    if tx.IsCoinbase() {  // another bug fix
+        return true
+    }
     prevTXs := make(map[string]Transaction)
 
     for _, vin := range tx.Vin {
@@ -123,10 +228,17 @@ func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
     return tx.Verify(prevTXs)
 }
 
+func dbExists() bool {
+    if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+            return false
+    }
+        
+    return true
+}
 
-// have some confuse
+// instead, we use UTXO set
 // FindUnspentTransactions returns a list of transactions containing unspent outputs
-func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
+/*func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
     var unspentTXs []Transaction
     spentTXOs := make(map[string][]int)  //该交易里TxInput的来源交易的Txid作为key, 来源交易中对应的Output的index作为value
     bci := bc.Iterator()
@@ -166,111 +278,9 @@ func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
     }
     return unspentTXs
 }
+*/
 
 
-// FindUTXO finds and returns all unspent transaction outputs
-func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
-    UTXO := make(map[string]TXOutputs)
-    spentTXOs := make(map[string][]int)
-    bci := bc.Iterator()
-    for {
-        block := bci.Next()
-    
-        for _, tx := range block.Transactions {
-            txID := hex.EncodeToString(tx.ID)
-                    
-            Outputs:
-                    for outIdx, out := range tx.Vout {
-                    // Was the output spent?
-                        if spentTXOs[txID] != nil {
-                            for _, spentOutIdx := range spentTXOs[txID] {
-                                    if spentOutIdx == outIdx {
-                                            continue Outputs
-                                    }
-                            }
-                        }
-                        outs := UTXO[txID]
-                        outs.Outputs = append(outs.Outputs, out)
-                        UTXO[txID] = outs
-                    }
-                    if tx.IsCoinbase() == false {
-                            for _, in := range tx.Vin {
-                                    inTxID := hex.EncodeToString(in.Txid)
-                                    spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
-                            }
-                    }
-        }
-        if len(block.PrevBlockHash) == 0 {
-                break
-        }
-    }
-    return UTXO
-}
-
-// NewBlockchain creates43 a new Blockchain with genesis Block
-func NewBlockchain() *Blockchain {
-    if dbExists() == false {
-            fmt.Println("No existing blockchain found. Create one first.")
-            os.Exit(1)
-    }
-    var tip []byte
-        db, err := bolt.Open(dbFile, 0600, nil)
-        if err != nil {
-            log.Panic(err)
-        }
-        err = db.Update(func(tx *bolt.Tx) error {  // open a read-write transaction
-                b := tx.Bucket([]byte(blocksBucket))  // obtain the bucket storing our blocks
-                tip = b.Get([]byte("l"))  
-                return nil
-            })
-            if err != nil {
-                    log.Panic(err)
-            }
-
-            bc := Blockchain{tip, db} //only the tip of the chain is stored. Also, we store a DB connection, all block stored in DB
-
-            return &bc
-}
 
 
-// CreateBlockchain createss a new Blockchain DB
-func CreateBlockchain(address string) *Blockchain {
-    if dbExists() {
-            fmt.Println("Blockchain already exists.")
-            os.Exit(1)
-    }
-    var tip []byte
-        db, err := bolt.Open(dbFile, 0600, nil)
-        if err != nil {
-            log.Panic(err)
-        }
-        err = db.Update(func(tx *bolt.Tx) error {  // open a read-write transaction
-                    cbtx := NewCoinbaseTX(address, genesisCoinbaseData)  // takes an address which will receive the reward for mining the genesis block.
-                    genesis := NewGenesisBlock(cbtx)
-
-                    b, err := tx.CreateBucket([]byte(blocksBucket))  //create the bucket
-                    if err != nil {
-                            log.Panic(err)
-                    }
-                    err = b.Put(genesis.Hash, genesis.Serialize())
-                    if err != nil {
-                            log.Panic(err)
-                    }
-
-                    err = b.Put([]byte("l"), genesis.Hash)  //update the l key storing the last block hash of the chain. ??
-                    if err != nil {
-                            log.Panic(err)
-                    }
-                    tip = genesis.Hash
-
-                    return nil
-            })
-            if err != nil {
-                    log.Panic(err)
-            }
-
-            bc := Blockchain{tip, db} //only the tip of the chain is stored. Also, we store a DB connection, all block stored in DB
-
-            return &bc
-}
 

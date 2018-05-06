@@ -17,6 +17,7 @@ func (cli *CLI) printUsage() {
     fmt.Println("  send -from FROM -to TO -amount AMOUNT - Send AMOUNT of coins from FROM address to TO")
     fmt.Println("  createwallet - Generates a new key-pair and saves it into the wallet file")
     fmt.Println("  listaddresses - Lists all addresses from the wallet file")
+    fmt.Println("  reindexutxo - Rebuilds the UTXO set")
 }
 
 func (cli *CLI) validateArgs() { 
@@ -36,7 +37,7 @@ func (cli *CLI) Run() {
     sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
     createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
     listAddressesCmd := flag.NewFlagSet("listaddresses", flag.ExitOnError)
-
+    reindexUTXOCmd := flag.NewFlagSet("reindexutxo", flag.ExitOnError) 
 
     createBlockchainAddress := createBlockchainCmd.String("address", "", "he address to send genesis block reward to")
     getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
@@ -76,6 +77,11 @@ func (cli *CLI) Run() {
             if err != nil {
                     log.Panic(err)
             }
+    case "reindexutxo":
+            err := reindexUTXOCmd.Parse(os.Args[2:])
+            if err != nil {
+                        log.Panic(err)
+            }
     default:
             cli.printUsage()
             os.Exit(1)
@@ -112,5 +118,7 @@ func (cli *CLI) Run() {
     if listAddressesCmd.Parsed() {
             cli.listAddresses()
     }
-
+    if reindexUTXOCmd.Parsed() {
+            cli.reindexUTXO()
+    }
 }

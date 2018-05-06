@@ -10,11 +10,6 @@ type BlockchainIterator struct {
     db          *bolt.DB
 }
 
-func (bc *Blockchain) Iterator() *BlockchainIterator {
-    bci := &BlockchainIterator{bc.tip, bc.db}
-
-    return bci
-}
 
 // Next returns next block starting from the tip
 func (i *BlockchainIterator) Next() *Block {

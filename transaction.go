@@ -17,7 +17,7 @@ import (
 const subsidy = 10
 
 type Transaction struct {
-    ID   []byte
+    ID   []byte  // 该笔交易的交易ID
     Vin  []TXInput
     Vout []TXOutput
 }
@@ -66,24 +66,24 @@ func (tx *Transaction) Hash() []byte {
 }
 
 // Sign signs each input of a Transaction
-func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
-    if tx.IsCoinbase() {
+func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transaction){ // look at signing-scheme.png
+    if tx.IsCoinbase() {           // in order to sign a transaction, we need to access the outputs referenced in the inputs of the transaction, thus we need the transactions that store these outputs.
             return
     }
-    for _, vin := range tx.Vin {  // ????
+    for _, vin := range tx.Vin {  // check Previous transaction is not correct 
             if prevTXs[hex.EncodeToString(vin.Txid)].ID == nil {
                     log.Panic("ERROR: Previous transaction is not correct")
             }
     }
     txCopy := tx.TrimmedCopy()
-    for inID, vin := range txCopy.Vin {
-            prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
+    for inID, vin := range txCopy.Vin {  // inputs are signed separately
+            prevTx := prevTXs[hex.EncodeToString(vin.Txid)] // get previous transaction
             txCopy.Vin[inID].Signature = nil   // Signature is set to nil (just a double-check)
             txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash // PubKey is set to the PubKeyHash of the referenced output.
             txCopy.ID = txCopy.Hash()           // The resulted hash is the data we’re going to sign
             txCopy.Vin[inID].PubKey = nil       // After getting the hash we should reset the PubKey field, so it doesn’t affect further iterations.
                         
-            r, s, err := ecdsa.Sign(rand.Reader, &privKey, txCopy.ID)
+            r, s, err := ecdsa.Sign(rand.Reader, &privKey, txCopy.ID)// the central piece, privKey and the data we're going to sign
             if err != nil {
                     log.Panic(err)
             }
@@ -113,17 +113,20 @@ func (tx Transaction) String() string {
     return strings.Join(lines, "\n")
 }
 
-
+/*
+Public key hashes stored in unlocked outputs. This identifies “sender” of a transaction.
+Public key hashes stored in new, locked, outputs. This identifies “recipient” of a transaction.
+Values of new outputs.
+*/
 // TrimmedCopy creates a trimmed copy of Transaction to be used in signing
 func (tx *Transaction) TrimmedCopy() Transaction {
     var inputs []TXInput
     var outputs []TXOutput
-
     for _, vin := range tx.Vin {  // TXInput.Signature and TXInput.PubKey are set to nil.
             inputs = append(inputs, TXInput{vin.Txid, vin.Vout, nil, nil})
     }
-    for _, vout := range tx.Vout {
-            outputs = append(outputs, TXOutput{vout.Value, vout.PubKeyHash})
+    for _, vout := range tx.Vout {  
+            outputs = append(outputs, TXOutput{vout.Value, vout.PubKeyHash}) 
     }
     txCopy := Transaction{tx.ID, inputs, outputs}
     return txCopy
@@ -161,7 +164,7 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
             x.SetBytes(vin.PubKey[:(keyLen / 2)])
             y.SetBytes(vin.PubKey[(keyLen / 2):])
 
-            rawPubKey := ecdsa.PublicKey{curve, &x, &y}
+            rawPubKey := ecdsa.PublicKey{curve, &x, &y} // private key sign, public key verify
             if ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) == false {
                 return false
             }
@@ -186,8 +189,8 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
             log.Panic("ERROR: Not enough funds")
     }
         
-    // Build a list of inputs
-    for txid, outs := range validOutputs {
+    // Build a list of input. 从能使用的output中构建input，比如tx0.Output 1，tx1.Output 0，tx3.Output 0等等
+    for txid, outs := range validOutputs {  // range循环用在map时，txid as key， outs as value
             txID, err := hex.DecodeString(txid)
             if err != nil {
                     log.Panic(err)

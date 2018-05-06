@@ -1,7 +1,21 @@
 Transactions must be signed because this is the only way in Bitcoin to guarantee that one cannot spend coins belonging to someone else.
 
+By applying a signing algorithm to data (i.e., signing the data), one gets a signature, which can later be verified. Digital signing happens with the usage of a private key, and verification requires a public key.
+In order to sign data we need the following things:
+1.data to sign;
+2.private key.
+The operation of signing produces a signature, which is stored in transaction inputs. In order to verify a signature, the following is required:
+1.data that was signed;
+2.the signature;
+3.public key.
+
+Every transaction input in Bitcoin is signed by the one who created the transaction. Every transaction in Bitcoin must be verified before being put in a block.Verification means :
+1.Checking that inputs have permission to use outputs from previous transactions.
+2.Checking that the transaction signature is correct.
+
+
 Considering that transactions unlock previous outputs, redistribute their values, and lock new outputs, the following data must be signed:
 
-1.Public key hashes stored in unlocked outputs. This identifies “sender” of a transaction.
-2.Public key hashes stored in new, locked, outputs. This identifies “recipient” of a transaction.
+1.Public key hashes stored in unlocked outputs. This identifies “sender” of a transaction. pay attention to unlocked outputs
+2.Public key hashes stored in new, locked, outputs. This identifies “recipient” of a transaction. pay attention to new locked outputs
 3.Values of new outputs.

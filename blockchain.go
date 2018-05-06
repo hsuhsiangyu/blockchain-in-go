@@ -42,12 +42,10 @@ func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
                             return *tx, nil
                     }
             }
-                                                    
             if len(block.PrevBlockHash) == 0 {
                     break
             }
     }
-                                                                        
     return Transaction{}, errors.New("Transaction is not found")
 }
 
@@ -125,33 +123,33 @@ func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
 // FindUnspentTransactions returns a list of transactions containing unspent outputs
 func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
     var unspentTXs []Transaction
-    spentTXOs := make(map[string][]int)
+    spentTXOs := make(map[string][]int)  //该交易里TxInput的来源交易的Txid作为key, 来源交易中对应的Output的index作为value
     bci := bc.Iterator()
 
     for {
-            block := bci.Next()  // check every block in a blockchain
-                for _, tx := range block.Transactions {
-                        txID := hex.EncodeToString(tx.ID)
+            block := bci.Next()  // check every block in a blockchain, from last block to genesis block
+                for _, tx := range block.Transactions {  // check every tx in the block
+                        txID := hex.EncodeToString(tx.ID)  // get the ID of the tx
                 Outputs:
-                        for outIdx, out := range tx.Vout {
-                            // Was the output spent? skip those that were referenced in inputs (their values were moved to other outputs, thus we cannot count them)
-                            if spentTXOs[txID] != nil { 
+                        for outIdx, out := range tx.Vout {  // check every Vout in the tx
+// Was the output spent? skip those that were referenced in inputs (their values were moved to other outputs, thus we cannot count them)
+                            if spentTXOs[txID] != nil {   // 如果该交易有 Output 被使用了 
                                     for _, spentOut := range spentTXOs[txID] {
-                                            if spentOut == outIdx {      // don't figure out ??????????????
-                                                    continue Outputs
+                                            if spentOut == outIdx {      // 用该out的输出index 和切片中的元素一一比较
+                                                    continue Outputs    // 存在的话，就忽略该 out， 不是忽略这笔交易!
                                             }
                                     }
                             }
                             if out.IsLockedWithKey(pubKeyHash) {  
-                                unspentTXs = append(unspentTXs, *tx)
+                                unspentTXs = append(unspentTXs, *tx)  // 只要有没使用过的并能解锁的Output都加进来
                             }
                         }
-                        if tx.IsCoinbase() == false {         //gather all inputs that could unlock outputs locked with the provided address,
-                                                              // this doesn’t apply to coinbase transactions, since they don’t unlock outputs
-                                for _, in := range tx.Vin {
+                        if tx.IsCoinbase() == false {//gather all inputs that could unlock outputs locked with the provided address,
+                                                // this doesn’t apply to coinbase transactions, since they don’t unlock outputs
+                                for _, in := range tx.Vin {  // check every input in Vin
                                         if in.UsesKey(pubKeyHash) {
-                                                inTxID := hex.EncodeToString(in.Txid)
-                                                spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
+                                                inTxID := hex.EncodeToString(in.Txid)  // in.Txid 指来源交易的Txid，如tx2中input0的Txid是tx0的交易ID
+                                                spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout) //看图，spentTXOs[tx0] 中有Output 0 的index
                                         }      
                                 }
                         }
@@ -168,7 +166,7 @@ func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
 // FindUTXO finds and returns all unspent transaction outputs
 func (bc *Blockchain) FindUTXO(pubKeyHash []byte) []TXOutput {
     var UTXOs []TXOutput
-    unspentTransactions := bc.FindUnspentTransactions(pubKeyHash)
+    unspentTransactions := bc.FindUnspentTransactions(pubKeyHash) // 从未使用完且能使用的交易中找UTXO
       
     for _, tx := range unspentTransactions {
             for _, out := range tx.Vout {

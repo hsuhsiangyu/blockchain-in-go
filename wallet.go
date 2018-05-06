@@ -38,8 +38,8 @@ func newKeyPair() (ecdsa.PrivateKey, []byte) {
     return *private, pubKey
 }
 
-// GetAddress returns wallet address
-func (w Wallet) GetAddress() []byte {
+// GetAddress returns wallet address, look at address-generation-scheme.png
+func (w Wallet) GetAddress() []byte { 
     pubKeyHash := HashPubKey(w.PublicKey)
 
     versionedPayload := append([]byte{version}, pubKeyHash...)

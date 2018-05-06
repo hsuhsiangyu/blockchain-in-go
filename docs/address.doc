@@ -1,0 +1,13 @@
+But addresses (despite being unique) are not something that identifies you as the owner of a “wallet”. In fact, such addresses are a human readable representation of public keys.
+
+your identity is a pair (or pairs) of private and public keys stored on your computer (or stored in some other place you have access to).Private and public keys are just random sequences of bytes, thus they cannot be printed on the screen and read by a human. That’s why Bitcoin uses an algorithm to convert public keys into a human readable string.
+
+Base58:
+Bitcoin address: 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
+if we decode it,here’s what the public key looks like 
+
+Version  Public key hash                           Checksum
+00       62E907B15CBF27D5425399EBF6F0FB50EBB88F18  C29B7D93
+
+look at address-generation-scheme.png
+it’s not possible to extract the public key from the hash. But we can check if a public key was used to get the hash by running it thought the save hash functions and comparing the hashes.

@@ -182,15 +182,10 @@ func NewCoinbaseTX(to, data string) *Transaction {
 }
 
 // NewUTXOTransaction creates a new transaction
-func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transaction {
+func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
     var inputs []TXInput
     var outputs []TXOutput
 
-    wallets, err := NewWallets()
-    if err != nil {
-            log.Panic(err)
-    }
-    wallet := wallets.GetWallet(from)
     pubKeyHash := HashPubKey(wallet.PublicKey)
     acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
 
@@ -211,6 +206,7 @@ func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transact
             }
     }
     // Build a list of outputs.                           create two outputs
+    from := fmt.Sprintf("%s", wallet.GetAddress())
     outputs = append(outputs, *NewTXOutput(amount, to)) // locked by receiver address 
     if acc > amount {
             outputs = append(outputs, *NewTXOutput(acc - amount, from)) // a change,  locked by sender address
@@ -222,3 +218,15 @@ func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transact
     return &tx
 }
 
+// DeserializeTransaction deserializes a transaction
+func DeserializeTransaction(data []byte) Transaction {
+    var transaction Transaction
+
+    decoder := gob.NewDecoder(bytes.NewReader(data))
+    err := decoder.Decode(&transaction)
+    if err != nil {
+            log.Panic(err)
+    }
+        
+    return transaction
+}

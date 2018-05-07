@@ -1,0 +1,27 @@
+So, what happens when you download, say, Bitcoin Core and run it for the first time? It has to connect to some node to downloaded the latest state of the blockchain. Considering that your computer is not aware of all, or some, Bitcoin nodes, what’s this node?
+
+Hardcoding a node address in Bitcoin Core would’ve been a mistake: the node could be attacked or shut down, which could result in new nodes not being able to join the network. Instead, in Bitcoin Core, there are DNS seeds hardcoded. These are not nodes, but DNS servers that know addresses of some nodes. When you start a clean Bitcoin Core, it’ll connect to one of the seeds and get a list of full nodes, which it’ll then download the blockchain from.
+
+The goal of this article is to implement the following scenario:
+
+1.The central node creates a blockchain.
+2.Other (wallet) node connects to it and downloads the blockchain.
+3.One more (miner) node connects to the central node and downloads the blockchain.
+4.The wallet node creates a transaction.
+5.The miner nodes receives the transaction and keeps it in its memory pool.
+6.When there are enough transactions in the memory pool, the miner starts mining a new block.
+7.When a new block is mined, it’s send to the central node.
+8.The wallet node synchronizes with the central node.
+9.User of the wallet node checks that their payment was successful.
+
+version
+Nodes communicate by the means of messages. When a new node is run, it gets several nodes from a DNS seed, and sends them version message, which in our implementation will look like this:
+
+type version struct {
+    Version    int
+    BestHeight int
+    AddrFrom   string
+}
+We have only one blockchain version, so the Version field won’t keep any important information. BestHeight stores the length of the node’s blockchain. AddFrom stores the address of the sender.
+
+What should a node that receives a version message do? It’ll respond with its own version message. This is a kind of a handshake: no other interaction is possible without prior greeting of each other. But it’s not just politeness: version is used to find a longer blockchain. When a node receives a version message it checks if the node’s blockchain is longer than the value of BestHeight. If it’s not, the node will request and download missing blocks.
